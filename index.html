@@ -223,9 +223,15 @@ async function load(){
 async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates})); toast('저장됨'); }
 
 function autoWed(){
-  const t=new Date(),st=new Date(t); const _day=st.getDay(); const _diff=(3-_day+7)%7; st.setDate(st.getDate()+_diff); if(st>t)st.setDate(st.getDate()-7);
+  // 오늘 기준 가장 가까운 과거 수요일 찾기
+  const today=new Date(); today.setHours(0,0,0,0);
+  const start=new Date(today);
+  // getDay(): 0=일,1=월,2=화,3=수,4=목,5=금,6=토
+  // 오늘이 수요일(3)이면 0, 목(4)이면 -1, ..., 화(2)면 -6
+  const diff = today.getDay()>=3 ? today.getDay()-3 : today.getDay()-3+7;
+  start.setDate(start.getDate()-diff);
   const ex=new Set(S.dates);
-  for(let i=0;i<8;i++){ const d=new Date(st); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)){S.dates.push(s);ex.add(s);} }
+  for(let i=0;i<8;i++){ const d=new Date(start); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)){S.dates.push(s);ex.add(s);} }
   S.dates=[...new Set(S.dates)].sort();
 }
 function stats(dt){ const a=S.attendance[dt]||{}; let o=0,x=0; S.members.forEach(m=>{if(a[m]==='o')o++;else if(a[m]==='x')x++;}); return{o,x,q:S.members.length-o-x}; }
@@ -280,6 +286,7 @@ function openModal(date,idx){
   $('modal-wrap').style.display='flex';
 }
 $('m-cancel').onclick=()=>$('modal-wrap').style.display='none';
+$('m-content').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))$('m-save').click();});
 $('modal-wrap').onclick=e=>{ if(e.target===$('modal-wrap'))$('modal-wrap').style.display='none'; };
 $('m-save').onclick=()=>{
   const date=$('m-date').value,title=$('m-title').value.trim(),content=$('m-content').value.trim();
