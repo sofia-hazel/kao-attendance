@@ -196,7 +196,7 @@ let calY = new Date().getFullYear(), calM = new Date().getMonth(), delMode = fal
 
 const $ = id => document.getElementById(id);
 
-function toStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function toStr(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function fmt(s){ const p=s.split('-'),d=new Date(+p[0],+p[1]-1,+p[2]),n=['일','월','화','수','목','금','토']; return `${d.getMonth()+1}월 ${d.getDate()}일 (${n[d.getDay()]})`; }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
 
@@ -225,7 +225,7 @@ async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members
 function autoWed(){
   const today=new Date(); today.setHours(0,0,0,0);
   const start=new Date(today);
-  const diff=(3-today.getDay()+7)%7;
+  const diff=((3-today.getDay()+7)%7)||7;
   start.setDate(start.getDate()+diff);
   const ex=new Set(S.dates);
   for(let i=0;i<8;i++){ const d=new Date(start); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)){S.dates.push(s);ex.add(s);} }
