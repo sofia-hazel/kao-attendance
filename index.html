@@ -223,12 +223,9 @@ async function load(){
 async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates})); toast('저장됨'); }
 
 function autoWed(){
-  // 오늘 기준 가장 가까운 과거 수요일 찾기
   const today=new Date(); today.setHours(0,0,0,0);
   const start=new Date(today);
-  // getDay(): 0=일,1=월,2=화,3=수,4=목,5=금,6=토
-  // 오늘이 수요일(3)이면 0, 목(4)이면 -1, ..., 화(2)면 -6
-  const diff = today.getDay()>=3 ? today.getDay()-3 : today.getDay()-3+7;
+  const diff=(today.getDay()-3+7)%7;
   start.setDate(start.getDate()-diff);
   const ex=new Set(S.dates);
   for(let i=0;i<8;i++){ const d=new Date(start); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)){S.dates.push(s);ex.add(s);} }
