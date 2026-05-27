@@ -188,7 +188,8 @@ h1{font-size:19px;font-weight:500;margin-bottom:1.25rem}
 
 <script>
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
-const GAS_URL = 'https://script.google.com/macros/s/...';
+const GAS_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+
 const HOL = new Set(['2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-01','2026-05-05','2026-05-15','2026-06-06','2026-08-15','2026-09-24','2026-09-25','2026-09-26','2026-10-03','2026-10-09','2026-12-25']);
 let S = {members:['김차현','김효경','소형준','오유선','이광빈','이연희','장아름','최송희'],dates:[],attendance:{},events:[],selDate:null,selCal:null};
 let calY = new Date().getFullYear(), calM = new Date().getMonth(), delMode = false, editIdx = null;
@@ -222,7 +223,7 @@ async function load(){
 async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates})); toast('저장됨'); }
 
 function autoWed(){
-  const t=new Date(),st=new Date(t); st.setDate(st.getDate()-st.getDay()+3); if(st>t)st.setDate(st.getDate()-7);
+  const t=new Date(),st=new Date(t); const _day=st.getDay(); const _diff=(3-_day+7)%7; st.setDate(st.getDate()+_diff); if(st>t)st.setDate(st.getDate()-7);
   const ex=new Set(S.dates);
   for(let i=0;i<8;i++){ const d=new Date(st); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)){S.dates.push(s);ex.add(s);} }
   S.dates=[...new Set(S.dates)].sort();
