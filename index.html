@@ -225,8 +225,8 @@ async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members
 function autoWed(){
   const today=new Date(); today.setHours(0,0,0,0);
   const start=new Date(today);
-  const diff=(today.getDay()-3+7)%7;
-  start.setDate(start.getDate()-diff);
+  const diff=(3-today.getDay()+7)%7;
+  start.setDate(start.getDate()+diff);
   const ex=new Set(S.dates);
   for(let i=0;i<8;i++){ const d=new Date(start); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)){S.dates.push(s);ex.add(s);} }
   S.dates=[...new Set(S.dates)].sort();
