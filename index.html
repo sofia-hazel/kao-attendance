@@ -216,11 +216,11 @@ async function gasSet(key, value){
 async function load(){
   try{
     const v = await gasGet('kao-state');
-    if(v){ const d=JSON.parse(v); S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[]; S.dates=d.dates||[]; }
+    if(v){ const d=JSON.parse(v); S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[]; S.dates=d.dates||[]; S.deleted=d.deleted||[]; }
   }catch(e){}
   autoWed(); render();
 }
-async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates})); toast('저장됨'); }
+async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted})); toast('저장됨'); }
 
 function autoWed(){
   const today=new Date(); today.setHours(0,0,0,0);
@@ -228,7 +228,8 @@ function autoWed(){
   const diff=((3-today.getDay()+7)%7)||7;
   start.setDate(start.getDate()+diff);
   const ex=new Set(S.dates);
-  for(let i=0;i<8;i++){ const d=new Date(start); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)){S.dates.push(s);ex.add(s);} }
+  const del=new Set(S.deleted||[]);
+  for(let i=0;i<8;i++){ const d=new Date(start); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)&&!del.has(s)){S.dates.push(s);ex.add(s);} }
   S.dates=[...new Set(S.dates)].sort();
 }
 function stats(dt){ const a=S.attendance[dt]||{}; let o=0,x=0; S.members.forEach(m=>{if(a[m]==='o')o++;else if(a[m]==='x')x++;}); return{o,x,q:S.members.length-o-x}; }
@@ -321,7 +322,7 @@ function rDetail(){
 
 function openAtt(d){ S.selDate=d; delMode=false; render(); $('detail-wrap').scrollIntoView({behavior:'smooth',block:'nearest'}); }
 function setA(m,v){ if(!S.attendance[S.selDate])S.attendance[S.selDate]={}; const c=S.attendance[S.selDate][m]; S.attendance[S.selDate][m]=c===v?'':v; sv(); rTiles(); rDetail(); }
-function delD(s){ if(!confirm(`${fmt(s)} 삭제할까요?`))return; S.dates=S.dates.filter(d=>d!==s); if(S.selDate===s)S.selDate=null; sv(); render(); }
+function delD(s){ if(!confirm(`${fmt(s)} 삭제할까요?`))return; S.dates=S.dates.filter(d=>d!==s); if(!S.deleted)S.deleted=[]; if(!S.deleted.includes(s))S.deleted.push(s); if(S.selDate===s)S.selDate=null; sv(); render(); }
 function delM(m){ S.members=S.members.filter(x=>x!==m); sv(); rDetail(); }
 
 $('close-att').onclick=()=>{ S.selDate=null; delMode=false; render(); };
