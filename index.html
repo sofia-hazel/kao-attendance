@@ -170,6 +170,19 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
   </div>
 </div>
 
+<!-- 날짜 수정 모달 -->
+<div class="modal-wrap" id="edit-date-wrap" style="display:none">
+  <div class="modal">
+    <div class="modal-hd">날짜 수정</div>
+    <label>날짜</label><input type="date" id="ed-date">
+    <label>표시 텍스트 (선택)</label><input type="text" id="ed-label" placeholder="예: 특별 연습, 공연 준비 등">
+    <div class="modal-btns">
+      <button class="btn-cancel" id="ed-cancel">취소</button>
+      <button class="btn-save" id="ed-save">저장</button>
+    </div>
+  </div>
+</div>
+
 <!-- modal -->
 <div class="modal-wrap" id="modal-wrap" style="display:none">
   <div class="modal">
@@ -191,13 +204,14 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbw3zqJu8BtLQhqDEjyoPIY1lqYl63nAHT8i2RyPV1J15QZoGIut77szIpiU1ulZIoGfyw/exec';
 
 const HOL = new Set(['2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-01','2026-05-05','2026-05-15','2026-06-06','2026-08-15','2026-09-24','2026-09-25','2026-09-26','2026-10-03','2026-10-09','2026-12-25']);
-let S = {members:['김차현','김효경','소형준','오유선','이광빈','이연희','장아름','최송희'],dates:[],attendance:{},events:[],selDate:null,selCal:null};
+let S = {members:['김차현','김효경','소형준','오유선','이광빈','이연희','장아름','최송희'],dates:[],attendance:{},events:[],labels:{},selDate:null,selCal:null};
 let calY = new Date().getFullYear(), calM = new Date().getMonth(), delMode = false, editIdx = null;
 
 const $ = id => document.getElementById(id);
 
 function toStr(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function fmt(s){ const p=s.split('-'),d=new Date(+p[0],+p[1]-1,+p[2]),n=['일','월','화','수','목','금','토']; return `${d.getMonth()+1}월 ${d.getDate()}일 (${n[d.getDay()]})`; }
+function fmtFull(s){ const base=fmt(s); const lbl=(S.labels&&S.labels[s])?` · ${S.labels[s]}`:''; return base+lbl; }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
 
 async function gasGet(key){
@@ -216,11 +230,11 @@ async function gasSet(key, value){
 async function load(){
   try{
     const v = await gasGet('kao-state');
-    if(v){ const d=JSON.parse(v); S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[]; S.dates=d.dates||[]; S.deleted=d.deleted||[]; }
+    if(v){ const d=JSON.parse(v); S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[]; S.dates=d.dates||[]; S.deleted=d.deleted||[]; S.labels=d.labels||{}; }
   }catch(e){}
   autoWed(); render();
 }
-async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted})); toast('저장됨'); }
+async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted,labels:S.labels})); toast('저장됨'); }
 
 function autoWed(){
   const today=new Date(); today.setHours(0,0,0,0);
@@ -298,7 +312,7 @@ function rTiles(){
   if(!S.dates.length){l.innerHTML='<div class="empty">날짜를 추가해 주세요</div>';return;}
   l.innerHTML=S.dates.map(d=>{
     const st=stats(d),sel=S.selDate===d?' sel':'';
-    return `<div class="date-tile${sel}" onclick="openAtt('${d}')"><div class="tile-top"><span class="tile-dt">${fmt(d)}</span><div style="display:flex;gap:4px"><button class="del-t" style="font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:2px 7px;color:#666" onclick="event.stopPropagation();editDate('${d}')">수정</button><button class="del-t" onclick="event.stopPropagation();delD('${d}')">✕</button></div></div><div class="tile-stats"><span class="so">참여 ${st.o}명</span><span class="sx">불참 ${st.x}명</span><span class="sq">미투표 ${st.q}명</span></div></div>`;
+    return `<div class="date-tile${sel}" onclick="openAtt('${d}')"><div class="tile-top"><span class="tile-dt">${fmtFull(d)}</span><div style="display:flex;gap:4px"><button class="del-t" style="font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:2px 7px;color:#666" onclick="event.stopPropagation();editDate('${d}')">수정</button><button class="del-t" onclick="event.stopPropagation();delD('${d}')">✕</button></div></div><div class="tile-stats"><span class="so">참여 ${st.o}명</span><span class="sx">불참 ${st.x}명</span><span class="sq">미투표 ${st.q}명</span></div></div>`;
   }).join('');
 }
 
@@ -341,15 +355,32 @@ $('add-m-btn').onclick=()=>{
 $('add-m-in').addEventListener('keydown',e=>{ if(e.key==='Enter')$('add-m-btn').click(); });
 $('del-mode-btn').onclick=()=>{ delMode=!delMode; rDetail(); };
 
+let editDateTarget=null;
 function editDate(old){
-  const neu=prompt('날짜를 수정하세요 (예: 2026-06-03)', old);
-  if(!neu||neu===old)return;
-  if(S.dates.includes(neu)){alert('이미 있는 날짜입니다');return;}
-  S.dates=S.dates.map(d=>d===old?neu:d).sort();
-  if(S.attendance[old]){S.attendance[neu]=S.attendance[old];delete S.attendance[old];}
-  if(S.selDate===old)S.selDate=neu;
-  sv(); render();
+  editDateTarget=old;
+  $('ed-date').value=old;
+  $('ed-label').value=(S.labels&&S.labels[old])||'';
+  $('edit-date-wrap').style.display='flex';
 }
+$('ed-cancel').onclick=()=>{ $('edit-date-wrap').style.display='none'; };
+$('edit-date-wrap').onclick=e=>{ if(e.target===$('edit-date-wrap'))$('edit-date-wrap').style.display='none'; };
+$('ed-save').onclick=()=>{
+  const old=editDateTarget;
+  const neu=$('ed-date').value;
+  const lbl=$('ed-label').value.trim();
+  if(!neu)return;
+  if(neu!==old){
+    if(S.dates.includes(neu)){alert('이미 있는 날짜입니다');return;}
+    S.dates=S.dates.map(d=>d===old?neu:d).sort();
+    if(S.attendance[old]){S.attendance[neu]=S.attendance[old];delete S.attendance[old];}
+    if(S.labels&&S.labels[old]){S.labels[neu]=S.labels[old];delete S.labels[old];}
+    if(S.selDate===old)S.selDate=neu;
+  }
+  if(!S.labels)S.labels={};
+  if(lbl) S.labels[neu]=lbl; else delete S.labels[neu];
+  $('edit-date-wrap').style.display='none';
+  sv(); render();
+};
 
 load();
 </script>
