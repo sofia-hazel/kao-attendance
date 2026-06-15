@@ -223,7 +223,12 @@ async function gasGet(key){
 }
 async function gasSet(key, value){
   try{
-    await fetch(`${GAS_URL}?action=set&key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`);
+    await fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({app: 'kao', action: 'set', key, value})
+    });
   }catch(e){}
 }
 
