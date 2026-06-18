@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -13,6 +13,11 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 @media(max-width:600px){.main-layout{grid-template-columns:1fr}}
 .card{background:#fff;border:0.5px solid #e0e0e0;border-radius:12px;padding:1rem 1.25rem}
 .sec-title{font-size:18px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.legend{display:flex;gap:12px;margin-bottom:10px;font-size:14px;color:#888;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-dot{width:9px;height:9px;border-radius:50%}
+.dot-red{background:#E24B4A}
+.dot-yellow{background:#EF9F27}
 .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .cal-nav{background:none;border:none;color:#888;font-size:29px;cursor:pointer;padding:2px 6px;border-radius:4px}
 .cal-nav:hover{background:#f0f0f0}
@@ -46,11 +51,11 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 .ev-add-btn{font-size:18px;background:#1D9E75;color:#fff;border:none;border-radius:6px;padding:3px 10px;cursor:pointer}
 /* modal */
 .modal-wrap{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:200}
-.modal{background:#fff;border-radius:12px;padding:1.25rem;width:300px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.modal{background:#fff;border-radius:12px;padding:1.5rem;width:550px;max-width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.15)}
 .modal-hd{font-size:22px;font-weight:500;margin-bottom:12px}
 .modal label{font-size:18px;color:#888;display:block;margin-bottom:4px;margin-top:10px}
 .modal input,.modal textarea{width:100%;font-size:21px;padding:7px 10px;border:0.5px solid #ddd;border-radius:8px;background:#f8f8f8;font-family:inherit;resize:vertical;outline:none}
-.modal textarea{min-height:90px}
+.modal textarea{min-height:250px}
 .modal input:focus,.modal textarea:focus{border-color:#1D9E75}
 .modal-btns{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
 .btn-cancel{background:none;border:0.5px solid #ddd;border-radius:8px;padding:6px 14px;font-size:21px;color:#666;cursor:pointer}
@@ -107,10 +112,14 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 <body>
 
 <div class="app">
-  <h1>KAO 관피타 파트 연습참여</h1>
+  <h1 onclick="location.reload()" style="cursor:pointer" title="클릭하면 새로고침">KAO 관피타 파트 연습참여</h1>
   <div class="main-layout">
     <div class="card" id="cal-card">
       <div class="sec-title">달력</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot dot-red"></div>연습</div>
+        <div class="legend-item"><div class="legend-dot dot-yellow"></div>행사</div>
+      </div>
       <div class="cal-header">
         <button class="cal-nav" id="prev-m">&#8249;</button>
         <span class="cal-month" id="cal-label"></span>
@@ -391,4 +400,3 @@ load();
 </script>
 </body>
 </html>
-
