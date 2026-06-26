@@ -234,10 +234,20 @@ async function gasGet(key){
   try{
     const r = await fetch(`${GAS_URL}?action=get&key=${encodeURIComponent(key)}`);
     const j = await r.json();
-    return j.ok ? j.value : null;
-  }catch(e){ return null; }
+    if(j.ok && j.value){
+      localStorage.setItem('kao_bak_'+key, j.value);
+      return j.value;
+    }
+    return null;
+  }catch(e){
+    // GAS GET 실패 시 localStorage 백업에서 복구
+    const bak = localStorage.getItem('kao_bak_'+key);
+    return bak || null;
+  }
 }
 async function gasSet(key, value){
+  // 저장 시 항상 localStorage에도 백업
+  try{ localStorage.setItem('kao_bak_'+key, value); }catch(e){}
   try{
     await fetch(GAS_URL, {
       method: 'POST',
