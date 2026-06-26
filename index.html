@@ -107,6 +107,7 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:21px;padding:8px 18px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:300}
 .toast.show{opacity:1}
 .loading{font-size:19px;color:#aaa;text-align:center;padding:.5rem 0}
+.footer{text-align:center;font-size:13px;color:#bbb;padding:1.5rem 0 1rem;line-height:1.8}
 </style>
 </head>
 <body>
@@ -208,7 +209,13 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 
 <div class="toast" id="toast"></div>
 
+<div class="footer">
+  © 2026 관피타출첵 · 개발 최송희. 무단 복제 및 배포를 금지합니다.<br>
+  <span id="ver-badge">v1.2</span>
+</div>
+
 <script>
+const APP_VERSION = 'v1.2';
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwguMXiaxPxvJ1_ESE9xVwb4cP9U_wEsJatIWfnrANsjqN4SbaRu3Y4xX3Yc2CJQr5F/exec';
 
