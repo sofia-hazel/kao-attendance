@@ -120,9 +120,12 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
       <div class="cal-header">
         <button class="cal-nav" id="prev-m">&#8249;</button>
         <span class="cal-month" id="cal-label"></span>
-        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#aaa">
-          <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#E24B4A;display:inline-block"></span>연습</span>
-          <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#378ADD;display:inline-block"></span>행사</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#aaa">
+            <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#E24B4A;display:inline-block"></span>연습</span>
+            <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:50%;background:#378ADD;display:inline-block"></span>행사</span>
+          </div>
+          <button class="cal-nav" id="next-m">&#8250;</button>
         </div>
       </div>
       <div class="cal-grid" id="cal-grid"></div>
@@ -207,11 +210,11 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 
 <div class="footer">
   © 2026 관피타출첵 · 개발 최송희. 무단 복제 및 배포를 금지합니다.<br>
-  <span id="ver-badge">v1.8</span>
+  <span id="ver-badge">v1.9</span>
 </div>
 
 <script>
-const APP_VERSION = 'v1.8';
+const APP_VERSION = 'v1.9';
 const RESTORE_KEY = 'kao_restored_v15';
 const RESTORE_DATA = {"members":["김차현","김효경","소형준","오유선","이광빈","이연희","장아름","최송희"],"attendance":{"2026-06-03":{"최송희":"","장아름":""},"2026-06-27":{"최송희":"o","장아름":"o","김차현":"o","이연희":"o","김효경":"o","오유선":"o","이광빈":"o","소형준":"o"},"2026-06-17":{"장아름":"o","김차현":"o","이연희":"o","최송희":"o","김효경":"o","오유선":"o","이광빈":"o","소형준":"o"},"2026-06-24":{"장아름":"o","김차현":"o","이연희":"o","최송희":"o","김효경":"o"},"2026-07-01":{"장아름":"o","이연희":"o","최송희":"o","소형준":"o","김차현":"o","김효경":"o","오유선":"x","이광빈":"o"},"2026-07-08":{"이연희":"o","소형준":"o","김차현":"o","김효경":"o","이광빈":"o","최송희":"o"},"2026-07-15":{"이연희":"o","최송희":"o","김차현":"o","김효경":"o","장아름":"o","소형준":"o","오유선":"x","이광빈":"o"},"2026-07-22":{"이연희":"o","김효경":"o"},"2026-06-10":{"최송희":"o","장아름":"o","김차현":"o","이연희":"o","소형준":"o","김효경":"o","오유선":"x","이광빈":"o"},"2026-06-20":{"이연희":"o","최송희":"o","김효경":"o","오유선":"o","김차현":"o","이광빈":"x","장아름":"o","소형준":"o"},"2026-07-29":{"김효경":"o"}},"events":[{"date":"2026-05-31","title":"태안풍천교회","content":"..."},{"date":"2026-06-20","title":"시네마리허설","content":"6월20일(토) 1~4시 / 성남장안초 체육관\n주차 : 비가 오지 않으면 운동장\n      비가 오면 주차장에 이중주차\n준비물 : 보면대, 악기, 악보, 물\n식사:오토김밥 닭강정 김밥 콤비세트\n(연희샘 주문부탁드려요)"},{"date":"2026-06-27","title":"시네마콘서트","content":"1) 의상 및 준비물\n- 상의: 흰색 반팔 (반팔, 7부까지 가능 / 민소매 금지)\n- 하의: 검정 바지\n- 신발 및 양말: 검은 신발, 검은스타킹(살이 보이지 않는 것으로 착용)\n- 보면대, 더듬이 필요 없음 (바람에 날아갈 수 있으므로 집게 등 활용)\n\n2) 주차 안내\n분당구청 주차장: 주차 타워 및 노상주차장\n중앙공원 A,B 주차장\n황새울공원 주차장\n분당중앙공원 주변: 성남대로 제외 주변 주차 가능\n\n3) 물품 보관 및 대기실\n-물품 보관: 보관 장소가 없으므로 귀중품은 개인이 소지\n-대기실: 지하1(경기티), 1층(복도)코크필, 2층(아카데미)\n\n4) 리허설 및 공연시간\n리허설 : 2시 30분~ 5시\n저녁식사 : 5시~7시(저녁 지원이 없으므로 파트별로 자유롭게 주변 식당 이용)\n공연시간 : 7시 30분~ \n\n5) 주의사항: \n- 사진 촬영: 리허설 후 세 단체 모두 단체 사진 촬영 -> KAO-> 코크필-> 경기티 순으로 단체 사진 촬영\n- 생수 및 쓰레게: 먹은 생수통이나 본인 쓰레기는 되가져가기(생수만 지원/ 기타 간식 및 점심 저녁 지원 없음)"},{"date":"2026-07-15","title":"장안초초청연주","content":"저녁7시~?"},{"date":"2026-06-24","title":"휴강","content":""},{"date":"2026-07-01","title":"특수직무연수 점검","content":"1. 연수 점검 일시 :18시30분 면담 후 19시 합주점검\n2. 점검 인원 : 2명(모니터링 담당교감, 주무관)\n3. 출석부 확인(테이블 비치)\n**물론 우리모두 매 연수시간동안 열정적으로 참석하고 잘 해왔지만, 특별히 이번주 수요일은 연수생 모두가 참석하셔야겠죠!! \n그리고 새로운 얼굴을 보시면 인사 잘 부탁드려요^-^"}],"dates":["2026-07-01","2026-07-08","2026-07-15","2026-07-22","2026-07-29","2026-08-05","2026-08-12","2026-08-19"],"deleted":["2026-06-03","2026-06-10","2026-06-17","2026-06-24","2026-06-20","2026-06-27"],"labels":{"2026-06-10":"보바스","2026-06-20":"시네마리허설","2026-06-27":"시네마콘서트","2026-07-15":"장안초"}};
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
