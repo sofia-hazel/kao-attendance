@@ -147,14 +147,11 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
     </div>
 
     <div class="card">
-      <div class="sec-title" style="display:flex;justify-content:space-between">
-        <span>날짜 목록</span><span style="font-size:16px;color:#aaa">수요일 자동생성</span>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button id="past-toggle-btn" onclick="togglePast()" style="font-size:15px;background:none;border:0.5px solid #ddd;border-radius:6px;padding:3px 10px;color:#aaa;cursor:pointer">지난 날짜 보기</button>
+        <button class="btn-p" id="add-date-btn" style="font-size:15px;padding:3px 12px">+ 추가</button>
       </div>
       <div class="tile-list" id="tile-list"><div class="loading">불러오는 중...</div></div>
-      <div class="add-row">
-        <input type="date" id="add-date-in">
-        <button class="btn-p" id="add-date-btn">추가</button>
-      </div>
     </div>
 
     <div class="detail-wrap" id="detail-wrap" style="display:none">
@@ -211,17 +208,17 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 
 <div class="footer">
   © 2026 관피타출첵 · 개발 최송희. 무단 복제 및 배포를 금지합니다.<br>
-  <span id="ver-badge">v1.0</span>
+  <span id="ver-badge">v1.4</span>
 </div>
 
 <script>
-const APP_VERSION = 'v1.2';
+const APP_VERSION = 'v1.4';
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzLcn8psnogzO-LAWkh-Qq4Ml0Tl7D96-IcPJRaI1z1N0eohkbNx9ZrNE01Mqeuetw/exec';
 
 const HOL = new Set(['2026-01-01','2026-02-16','2026-02-17','2026-02-18','2026-03-01','2026-05-05','2026-05-15','2026-06-06','2026-08-15','2026-09-24','2026-09-25','2026-09-26','2026-10-03','2026-10-09','2026-12-25']);
 let S = {members:['김차현','김효경','소형준','오유선','이광빈','이연희','장아름','최송희'],dates:[],attendance:{},events:[],labels:{},selDate:null,selCal:null};
-let calY = new Date().getFullYear(), calM = new Date().getMonth(), delMode = false, editIdx = null;
+let calY = new Date().getFullYear(), calM = new Date().getMonth(), delMode = false, editIdx = null, showPast = false;
 
 const $ = id => document.getElementById(id);
 
@@ -264,6 +261,7 @@ async function load(){
     if(v){ const d=JSON.parse(v); S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[]; S.dates=d.dates||[]; S.deleted=d.deleted||[]; S.labels=d.labels||{}; }
   }catch(e){}
   autoWed(); render();
+  $('ver-badge').textContent = APP_VERSION;
 }
 async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted,labels:S.labels})); toast('저장됨'); }
 
@@ -338,10 +336,21 @@ $('m-save').onclick=()=>{
   S.selCal=date; $('modal-wrap').style.display='none'; sv(); render();
 };
 
+function togglePast(){
+  showPast=!showPast;
+  const btn=$('past-toggle-btn');
+  btn.textContent=showPast?'지난 날짜 숨기기':'지난 날짜 보기';
+  btn.style.color=showPast?'#1D9E75':'#aaa';
+  btn.style.borderColor=showPast?'#1D9E75':'#ddd';
+  rTiles();
+}
+
 function rTiles(){
   const l=$('tile-list');
-  if(!S.dates.length){l.innerHTML='<div class="empty">날짜를 추가해 주세요</div>';return;}
-  l.innerHTML=S.dates.map(d=>{
+  const tod=toStr(new Date());
+  const visible=showPast?S.dates:S.dates.filter(d=>d>=tod);
+  if(!visible.length){l.innerHTML=`<div class="empty">${S.dates.length?'지난 날짜만 있어요 · 위 버튼으로 보기':'날짜를 추가해 주세요'}</div>`;return;}
+  l.innerHTML=visible.map(d=>{
     const st=stats(d),sel=S.selDate===d?' sel':'';
     return `<div class="date-tile${sel}" onclick="openAtt('${d}')"><div class="tile-top"><span class="tile-dt">${fmtFull(d)}</span><div style="display:flex;gap:4px"><button class="del-t" style="font-size:11px;border:0.5px solid #ddd;border-radius:4px;padding:2px 7px;color:#666" onclick="event.stopPropagation();editDate('${d}')">수정</button><button class="del-t" onclick="event.stopPropagation();delD('${d}')">✕</button></div></div><div class="tile-stats"><span class="so">참여 ${st.o}명</span><span class="sx">불참 ${st.x}명</span><span class="sq">미투표 ${st.q}명</span></div></div>`;
   }).join('');
@@ -373,11 +382,15 @@ function delM(m){ S.members=S.members.filter(x=>x!==m); sv(); rDetail(); }
 $('close-att').onclick=()=>{ S.selDate=null; delMode=false; render(); };
 $('prev-m').onclick=()=>{ calM--; if(calM<0){calM=11;calY--;} rCal(); };
 $('next-m').onclick=()=>{ calM++; if(calM>11){calM=0;calY++;} rCal(); };
-$('add-date-btn').onclick=()=>{
-  const v=$('add-date-in').value; if(!v)return;
+const _hiddenDateIn = document.createElement('input');
+_hiddenDateIn.type='date'; _hiddenDateIn.style.cssText='position:absolute;opacity:0;pointer-events:none;width:0;height:0';
+document.body.appendChild(_hiddenDateIn);
+_hiddenDateIn.addEventListener('change',()=>{
+  const v=_hiddenDateIn.value; _hiddenDateIn.value=''; if(!v)return;
   if(S.dates.includes(v)){alert('이미 있는 날짜입니다');return;}
-  S.dates.push(v); S.dates=[...new Set(S.dates)].sort(); $('add-date-in').value=''; sv(); render();
-};
+  S.dates.push(v); S.dates=[...new Set(S.dates)].sort(); sv(); render();
+});
+$('add-date-btn').onclick=()=>{ _hiddenDateIn.showPicker&&_hiddenDateIn.showPicker()||_hiddenDateIn.click(); };
 $('add-m-btn').onclick=()=>{
   const v=$('add-m-in').value.trim(); if(!v)return;
   if(S.members.includes(v)){alert('이미 있는 멤버입니다');return;}
