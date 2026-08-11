@@ -211,11 +211,11 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 
 <div class="footer">
   © 2026 관피타출첵 · 개발 최송희. 무단 복제 및 배포를 금지합니다.<br>
-  <span id="ver-badge">v2.4</span>
+  <span id="ver-badge">v2.5</span>
 </div>
 
 <script>
-const APP_VERSION = 'v2.4';
+const APP_VERSION = 'v2.5';
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwLvo2y72xH4lknFApI1P367wHSCF9Z6lb2CFuEf_98QW43TkAb1WwpTZjUuiBA4mIm/exec';
 
@@ -236,40 +236,73 @@ function fetchWithTimeout(url, opts={}, ms=4000){
   return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(id));
 }
 async function gasGet(key){
-  try{
-    const r = await fetchWithTimeout(`${GAS_URL}?action=get&key=${encodeURIComponent(key)}`);
-    const j = await r.json();
-    if(j.ok && j.value){
-      localStorage.setItem('kao_bak_'+key, j.value);
-      return j.value;
-    }
-    return null;
-  }catch(e){
-    const bak = localStorage.getItem('kao_bak_'+key);
-    return bak || null;
+  const r = await fetchWithTimeout(`${GAS_URL}?action=get&key=${encodeURIComponent(key)}`, {}, 8000);
+  const j = await r.json();
+  if(j.ok && j.value){
+    localStorage.setItem('kao_bak_'+key, j.value);
+    return j.value;
   }
+  return null;
 }
+// mode:'no-cors' 응답은 읽을 수 없으므로(항상 성공한 것처럼 보임) cors로 바꿔 서버의 실제 성공/실패(ok)를 확인한다.
 async function gasSet(key, value){
+  const r = await fetchWithTimeout(GAS_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({app: 'kao', action: 'set', key, value})
+  }, 8000);
+  const j = await r.json();
+  if(!j.ok) throw new Error(j.message||'서버 저장 거부됨');
   try{ localStorage.setItem('kao_bak_'+key, value); }catch(e){}
-  try{
-    fetchWithTimeout(GAS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({app: 'kao', action: 'set', key, value})
-    });
-  }catch(e){}
 }
 
+function applyState(d){
+  S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[];
+  S.dates=d.dates||[]; S.deleted=d.deleted||[]; S.labels=d.labels||{};
+}
+
+// 서버 로드 실패 시 로컬 백업으로라도 화면은 보여주되, saveGuardOk=false로 두어 저장은 막는다.
+// (다른 기기의 로드 실패가 전체 기록을 빈 값으로 덮어쓰던 근본 원인 차단)
+let saveGuardOk = false;
 async function load(){
   try{
     const v = await gasGet('kao-state');
-    if(v){ const d=JSON.parse(v); S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[]; S.dates=d.dates||[]; S.deleted=d.deleted||[]; S.labels=d.labels||{}; }
-  }catch(e){}
+    if(v){ applyState(JSON.parse(v)); saveGuardOk = true; }
+  }catch(e){
+    const bak = localStorage.getItem('kao_bak_kao-state');
+    if(bak){ try{ applyState(JSON.parse(bak)); }catch(e2){} }
+    toast('서버 연결 실패 · 새로고침 전까지 저장이 제한됩니다');
+  }
   autoWed(); render();
   $('ver-badge').textContent = APP_VERSION;
 }
-async function sv(){ await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted,labels:S.labels})); toast('저장됨'); }
+
+// 저장 직전 서버 최신값을 다시 읽어와 그 위에 이번 변경만 적용한다.
+// (동시에 다른 사람이 저장한 내용이나, 내가 오래 열어둔 탭의 낡은 상태로 덮어쓰는 것을 방지)
+let saving = false;
+async function mutateAndSave(mutator){
+  if(saving){ toast('저장 중입니다, 잠시만요'); return; }
+  saving = true;
+  try{
+    const v = await gasGet('kao-state');
+    if(v) applyState(JSON.parse(v));
+    saveGuardOk = true;
+    mutator();
+    render();
+    await sv();
+  }catch(e){
+    toast('저장 실패 · 네트워크 확인 후 다시 시도해주세요');
+    render();
+  }finally{
+    saving = false;
+  }
+}
+
+async function sv(){
+  if(!saveGuardOk){ toast('서버와 동기화 전이라 저장할 수 없어요 · 새로고침 해주세요'); throw new Error('save blocked: not synced'); }
+  await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted,labels:S.labels}));
+  toast('저장됨');
+}
 
 function autoWed(){
   const today=new Date(); today.setHours(0,0,0,0);
@@ -326,7 +359,7 @@ function rEvBox(){
     $('ev-has-content').textContent=ev.content||'';
     hb.classList.add('show'); nb.classList.remove('show');
     $('ev-edit-btn').onclick=()=>openModal(S.selCal,ev.i);
-    $('ev-del-btn').onclick=()=>{ S.events.splice(ev.i,1); S.selCal=null; sv(); render(); };
+    $('ev-del-btn').onclick=()=>{ const idx=ev.i; mutateAndSave(()=>{ S.events.splice(idx,1); S.selCal=null; }); };
   } else {
     $('ev-none-date').textContent=fmt(S.selCal);
     nb.classList.add('show'); hb.classList.remove('show');
@@ -348,8 +381,12 @@ $('modal-wrap').onclick=e=>{ if(e.target===$('modal-wrap'))$('modal-wrap').style
 $('m-save').onclick=()=>{
   const date=$('m-date').value,title=$('m-title').value.trim(),content=$('m-content').value.trim();
   if(!date||!title)return;
-  if(editIdx!=null){S.events[editIdx]={date,title,content};}else{S.events.push({date,title,content});}
-  S.selCal=date; $('modal-wrap').style.display='none'; sv(); render();
+  const idx=editIdx;
+  $('modal-wrap').style.display='none';
+  mutateAndSave(()=>{
+    if(idx!=null){S.events[idx]={date,title,content};}else{S.events.push({date,title,content});}
+    S.selCal=date;
+  });
 };
 
 function togglePast(){
@@ -391,9 +428,25 @@ function rDetail(){
 }
 
 function openAtt(d){ S.selDate=d; delMode=false; render(); $('detail-wrap').scrollIntoView({behavior:'smooth',block:'nearest'}); }
-function setA(m,v){ if(!S.attendance[S.selDate])S.attendance[S.selDate]={}; const c=S.attendance[S.selDate][m]; S.attendance[S.selDate][m]=c===v?'':v; sv(); rTiles(); rDetail(); }
-function delD(s){ if(!confirm(`${fmt(s)} 삭제할까요?`))return; S.dates=S.dates.filter(d=>d!==s); if(!S.deleted)S.deleted=[]; if(!S.deleted.includes(s))S.deleted.push(s); if(S.selDate===s)S.selDate=null; sv(); render(); }
-function delM(m){ S.members=S.members.filter(x=>x!==m); sv(); rDetail(); }
+function setA(m,v){
+  const dt=S.selDate;
+  mutateAndSave(()=>{
+    if(!S.attendance[dt])S.attendance[dt]={};
+    const c=S.attendance[dt][m];
+    S.attendance[dt][m]=c===v?'':v;
+    S.selDate=dt;
+  });
+}
+function delD(s){
+  if(!confirm(`${fmt(s)} 삭제할까요?`))return;
+  mutateAndSave(()=>{
+    S.dates=S.dates.filter(d=>d!==s);
+    if(!S.deleted)S.deleted=[];
+    if(!S.deleted.includes(s))S.deleted.push(s);
+    if(S.selDate===s)S.selDate=null;
+  });
+}
+function delM(m){ mutateAndSave(()=>{ S.members=S.members.filter(x=>x!==m); }); }
 
 $('close-att').onclick=()=>{ S.selDate=null; delMode=false; render(); };
 $('prev-m').onclick=()=>{ calM--; if(calM<0){calM=11;calY--;} rCal(); };
@@ -404,13 +457,14 @@ document.body.appendChild(_hiddenDateIn);
 _hiddenDateIn.addEventListener('change',()=>{
   const v=_hiddenDateIn.value; _hiddenDateIn.value=''; if(!v)return;
   if(S.dates.includes(v)){alert('이미 있는 날짜입니다');return;}
-  S.dates.push(v); S.dates=[...new Set(S.dates)].sort(); sv(); render();
+  mutateAndSave(()=>{ S.dates.push(v); S.dates=[...new Set(S.dates)].sort(); });
 });
 $('add-date-btn').onclick=()=>{ _hiddenDateIn.showPicker&&_hiddenDateIn.showPicker()||_hiddenDateIn.click(); };
 $('add-m-btn').onclick=()=>{
   const v=$('add-m-in').value.trim(); if(!v)return;
   if(S.members.includes(v)){alert('이미 있는 멤버입니다');return;}
-  S.members.push(v); $('add-m-in').value=''; sv(); rDetail();
+  $('add-m-in').value='';
+  mutateAndSave(()=>{ S.members.push(v); });
 };
 $('add-m-in').addEventListener('keydown',e=>{ if(e.key==='Enter')$('add-m-btn').click(); });
 $('del-mode-btn').onclick=()=>{ delMode=!delMode; rDetail(); };
@@ -429,17 +483,18 @@ $('ed-save').onclick=()=>{
   const neu=$('ed-date').value;
   const lbl=$('ed-label').value.trim();
   if(!neu)return;
-  if(neu!==old){
-    if(S.dates.includes(neu)){alert('이미 있는 날짜입니다');return;}
-    S.dates=S.dates.map(d=>d===old?neu:d).sort();
-    if(S.attendance[old]){S.attendance[neu]=S.attendance[old];delete S.attendance[old];}
-    if(S.labels&&S.labels[old]){S.labels[neu]=S.labels[old];delete S.labels[old];}
-    if(S.selDate===old)S.selDate=neu;
-  }
-  if(!S.labels)S.labels={};
-  if(lbl) S.labels[neu]=lbl; else delete S.labels[neu];
+  if(neu!==old && S.dates.includes(neu)){alert('이미 있는 날짜입니다');return;}
   $('edit-date-wrap').style.display='none';
-  sv(); render();
+  mutateAndSave(()=>{
+    if(neu!==old){
+      S.dates=S.dates.map(d=>d===old?neu:d).sort();
+      if(S.attendance[old]){S.attendance[neu]=S.attendance[old];delete S.attendance[old];}
+      if(S.labels&&S.labels[old]){S.labels[neu]=S.labels[old];delete S.labels[old];}
+      if(S.selDate===old)S.selDate=neu;
+    }
+    if(!S.labels)S.labels={};
+    if(lbl) S.labels[neu]=lbl; else delete S.labels[neu];
+  });
 };
 
 load();
