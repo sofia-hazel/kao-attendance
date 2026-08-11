@@ -245,10 +245,13 @@ async function gasGet(key){
   return null;
 }
 // mode:'no-cors' 응답은 읽을 수 없으므로(항상 성공한 것처럼 보임) cors로 바꿔 서버의 실제 성공/실패(ok)를 확인한다.
+// Content-Type은 text/plain으로 보낸다 — application/json으로 보내면 브라우저가 CORS preflight(OPTIONS)를
+// 먼저 보내는데 Apps Script 웹앱은 OPTIONS를 처리하지 못해 요청 자체가 막힌다. GAS는 body 내용만 보고
+// JSON.parse하므로 헤더가 text/plain이어도 동작은 동일하다.
 async function gasSet(key, value){
   const r = await fetchWithTimeout(GAS_URL, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({app: 'kao', action: 'set', key, value})
   }, 8000);
   const j = await r.json();
