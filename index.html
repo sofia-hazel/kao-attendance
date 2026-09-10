@@ -108,6 +108,8 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 .empty{font-size:21px;color:#aaa;text-align:center;padding:1rem 0}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:21px;padding:8px 18px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:300}
 .toast.show{opacity:1}
+.saving-pill{position:fixed;top:10px;right:10px;background:#555;color:#fff;font-size:15px;padding:5px 12px;border-radius:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300}
+.saving-pill.show{opacity:.9}
 .loading{font-size:19px;color:#aaa;text-align:center;padding:.5rem 0}
 .footer{text-align:center;font-size:13px;color:#bbb;padding:1.5rem 0 1rem;line-height:1.8}
 </style>
@@ -208,14 +210,15 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="saving-pill" id="saving-pill">저장 중…</div>
 
 <div class="footer">
   © 2026 관피타출첵 · 개발 최송희. 무단 복제 및 배포를 금지합니다.<br>
-  <span id="ver-badge">v2.5</span>
+  <span id="ver-badge">v2.6</span>
 </div>
 
 <script>
-const APP_VERSION = 'v2.5';
+const APP_VERSION = 'v2.6';
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby3gRr84-pjpZhSTvFF4D-Uh8PC6_lgu8tmy9QUi8-62UJ1L_l26tnxJiZwzX3EBZDh/exec';
 
@@ -235,11 +238,15 @@ function fetchWithTimeout(url, opts={}, ms=4000){
   const id=setTimeout(()=>ctrl.abort(),ms);
   return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(id));
 }
+// 저장소가 막힌 브라우저(시크릿 모드, 사이트 데이터 차단)에서도 앱이 죽지 않도록 감싼다.
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
 async function gasGet(key){
   const r = await fetchWithTimeout(`${GAS_URL}?action=get&key=${encodeURIComponent(key)}`, {}, 8000);
   const j = await r.json();
   if(j.ok && j.value){
-    localStorage.setItem('kao_bak_'+key, j.value);
+    lsSet('kao_bak_'+key, j.value);
     return j.value;
   }
   return null;
@@ -256,7 +263,7 @@ async function gasSet(key, value){
   }, 8000);
   const j = await r.json();
   if(!j.ok) throw new Error(j.message||'서버 저장 거부됨');
-  try{ localStorage.setItem('kao_bak_'+key, value); }catch(e){}
+  lsSet('kao_bak_'+key, value);
 }
 
 function applyState(d){
@@ -268,38 +275,63 @@ function applyState(d){
 // (다른 기기의 로드 실패가 전체 기록을 빈 값으로 덮어쓰던 근본 원인 차단)
 let saveGuardOk = false;
 async function load(){
+  // GAS 왕복은 2~20초까지 걸린다. 그동안 빈 화면을 보여주지 않도록 직전 백업으로 먼저 그린다.
+  // 저장 잠금(saveGuardOk)은 그대로라, 서버 응답 전에는 화면만 보이고 저장은 여전히 막힌다.
+  const bak = lsGet('kao_bak_kao-state');
+  if(bak){ try{ applyState(JSON.parse(bak)); autoWed(); render(); }catch(e){} }
+  $('ver-badge').textContent = APP_VERSION;
   try{
     const v = await gasGet('kao-state');
     if(v){ applyState(JSON.parse(v)); saveGuardOk = true; }
   }catch(e){
-    const bak = localStorage.getItem('kao_bak_kao-state');
-    if(bak){ try{ applyState(JSON.parse(bak)); }catch(e2){} }
     toast('서버 연결 실패 · 새로고침 전까지 저장이 제한됩니다');
   }
   autoWed(); render();
-  $('ver-badge').textContent = APP_VERSION;
 }
 
-// 저장 직전 서버 최신값을 다시 읽어와 그 위에 이번 변경만 적용한다.
-// (동시에 다른 사람이 저장한 내용이나, 내가 오래 열어둔 탭의 낡은 상태로 덮어쓰는 것을 방지)
+// 화면은 누르는 즉시 바꾸고(낙관적 UI), 서버 저장은 뒤에서 모아서 한 번에 처리한다.
+// 저장 직전 서버 최신값을 다시 읽어와 그 위에 대기중인 변경들을 다시 얹으므로,
+// 동시에 다른 사람이 저장한 내용을 덮어쓰지 않는 성질은 그대로 유지된다.
 let saving = false;
-async function mutateAndSave(mutator){
-  if(saving){ toast('저장 중입니다, 잠시만요'); return; }
-  saving = true;
+let pending = [];          // 아직 서버에 반영되지 않은 변경들
+let flushTimer = null;
+const FLUSH_DELAY = 900;   // 연타를 모으는 시간(ms)
+
+function setPendingUI(){ $('saving-pill').classList.toggle('show', pending.length>0 || saving); }
+
+function mutateAndSave(mutator){
+  mutator();
+  pending.push(mutator);
+  render();
+  setPendingUI();
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flush, FLUSH_DELAY);
+}
+
+async function flush(){
+  if(saving || !pending.length) return;
+  const batch = pending; pending = [];
+  saving = true; setPendingUI();
   try{
     const v = await gasGet('kao-state');
     if(v) applyState(JSON.parse(v));
     saveGuardOk = true;
-    mutator();
+    batch.forEach(fn=>fn());   // 서버 최신값 위에 내 변경들을 다시 얹는다
     render();
     await sv();
   }catch(e){
+    pending = batch.concat(pending);   // 실패분은 되돌려 다음 시도에 재전송
     toast('저장 실패 · 네트워크 확인 후 다시 시도해주세요');
-    render();
   }finally{
     saving = false;
+    setPendingUI();
+    if(pending.length){ clearTimeout(flushTimer); flushTimer = setTimeout(flush, FLUSH_DELAY); }
   }
 }
+
+// 저장이 밀린 상태로 창을 닫으면 그 변경은 사라진다. 닫기 전에 경고하고, 탭을 벗어날 땐 즉시 저장 시도.
+window.addEventListener('beforeunload', e=>{ if(pending.length || saving){ e.preventDefault(); e.returnValue=''; } });
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden' && pending.length){ clearTimeout(flushTimer); flush(); } });
 
 async function sv(){
   if(!saveGuardOk){ toast('서버와 동기화 전이라 저장할 수 없어요 · 새로고침 해주세요'); throw new Error('save blocked: not synced'); }
@@ -433,10 +465,12 @@ function rDetail(){
 function openAtt(d){ S.selDate=d; delMode=false; render(); $('detail-wrap').scrollIntoView({behavior:'smooth',block:'nearest'}); }
 function setA(m,v){
   const dt=S.selDate;
+  // 목표값을 누른 시점에 확정한다. (서버 최신값 위에 다시 얹을 때 토글이 뒤집혀 눌렀던 것과
+  //  다른 결과가 나오는 것을 막는다 — 누른 사람의 의도가 그대로 남는다)
+  const next = (S.attendance[dt]||{})[m]===v ? '' : v;
   mutateAndSave(()=>{
     if(!S.attendance[dt])S.attendance[dt]={};
-    const c=S.attendance[dt][m];
-    S.attendance[dt][m]=c===v?'':v;
+    S.attendance[dt][m]=next;
     S.selDate=dt;
   });
 }
