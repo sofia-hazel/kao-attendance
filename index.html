@@ -237,11 +237,11 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 
 <div class="footer">
   © 2026 관피타출첵 · 개발 최송희. 무단 복제 및 배포를 금지합니다.<br>
-  <span id="ver-badge">v2.7</span>
+  <span id="ver-badge">v2.8</span>
 </div>
 
 <script>
-const APP_VERSION = 'v2.7';
+const APP_VERSION = 'v2.8';
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby3gRr84-pjpZhSTvFF4D-Uh8PC6_lgu8tmy9QUi8-62UJ1L_l26tnxJiZwzX3EBZDh/exec';
 
@@ -266,7 +266,7 @@ function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; 
 function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
 
 async function gasGet(key){
-  const r = await fetchWithTimeout(`${GAS_URL}?action=get&key=${encodeURIComponent(key)}`, {}, 8000);
+  const r = await fetchWithTimeout(`${GAS_URL}?action=get&key=${encodeURIComponent(key)}`, {}, 15000);
   const j = await r.json();
   if(j.ok && j.value){
     lsSet('kao_bak_'+key, j.value);
@@ -283,7 +283,7 @@ async function gasSet(key, value){
     method: 'POST',
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({app: 'kao', action: 'set', key, value})
-  }, 8000);
+  }, 15000);
   const j = await r.json();
   if(!j.ok) throw new Error(j.message||'서버 저장 거부됨');
   lsSet('kao_bak_'+key, value);
@@ -339,6 +339,7 @@ async function flush(){
     const v = await gasGet('kao-state');
     if(v) applyState(JSON.parse(v));
     saveGuardOk = true;
+    autoWed();   // 서버값으로 덮이면 화면에서만 만든 수요일 날짜가 빠진다 — 다시 채워 함께 저장한다
     batch.forEach(fn=>fn());   // 서버 최신값 위에 내 변경들을 다시 얹는다
     render();
     await sv();
@@ -365,11 +366,16 @@ async function sv(){
 function autoWed(){
   const today=new Date(); today.setHours(0,0,0,0);
   const start=new Date(today);
-  const diff=((3-today.getDay()+7)%7)||7;
+  const diff=(3-today.getDay()+7)%7;   // 수요일 당일도 포함 (연습 당일에 날짜가 없으면 안 된다)
   start.setDate(start.getDate()+diff);
   const ex=new Set(S.dates);
   const del=new Set(S.deleted||[]);
   for(let i=0;i<8;i++){ const d=new Date(start); d.setDate(d.getDate()+i*7); const s=toStr(d); if(!HOL.has(s)&&!ex.has(s)&&!del.has(s)){S.dates.push(s);ex.add(s);} }
+  // 출석 표가 있는데 목록에도 휴지통에도 없는 날짜는 저장 중에 빠진 것이다 — 목록으로 되살린다.
+  Object.keys(S.attendance||{}).forEach(s=>{
+    const voted=Object.values(S.attendance[s]||{}).some(v=>v==='o'||v==='x');
+    if(voted&&!ex.has(s)&&!del.has(s)){S.dates.push(s);ex.add(s);}
+  });
   S.dates=[...new Set(S.dates)].sort();
 }
 function stats(dt){ const a=S.attendance[dt]||{}; let o=0,x=0; S.members.forEach(m=>{if(a[m]==='o')o++;else if(a[m]==='x')x++;}); return{o,x,q:S.members.length-o-x}; }
