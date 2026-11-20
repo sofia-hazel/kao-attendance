@@ -237,11 +237,11 @@ h1{font-size:30px;font-weight:500;margin-bottom:1.25rem}
 
 <div class="footer">
   © 2026 관피타출첵 · 개발 최송희. 무단 복제 및 배포를 금지합니다.<br>
-  <span id="ver-badge">v2.9</span>
+  <span id="ver-badge">v3.0</span>
 </div>
 
 <script>
-const APP_VERSION = 'v2.9';
+const APP_VERSION = 'v3.0';
 // ★★★ 여기에 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxi9PUcMhcQcF7OmNXLmbttjr0JabyefWVncawt4UOts40gHpVeREvttObaVOcy0dlQ/exec';
 
@@ -252,8 +252,23 @@ let calY = new Date().getFullYear(), calM = new Date().getMonth(), editIdx = nul
 const $ = id => document.getElementById(id);
 
 function toStr(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function fmt(s){ const p=s.split('-'),d=new Date(+p[0],+p[1]-1,+p[2]),n=['일','월','화','수','목','금','토']; return `${d.getMonth()+1}월 ${d.getDate()}일 (${n[d.getDay()]})`; }
-function fmtFull(s){ const base=fmt(s); const lbl=(S.labels&&S.labels[s])?` · ${S.labels[s]}`:''; return base+lbl; }
+// 출첵표 하나를 가리키는 '열쇠'. 연습은 날짜 그대로, 행사는 날짜 뒤에 #행사이름을 붙인다.
+//   연습: '2026-11-25'            행사: '2026-11-25#보바스병원 연주'
+// 꼬리표가 없는 열쇠는 전부 연습이라, 예전 기록은 손대지 않아도 그대로 동작한다.
+const dayOf = k => String(k).split('#')[0];
+const evtOf = k => { const i=String(k).indexOf('#'); return i<0 ? null : String(k).slice(i+1); };
+const keyOf = (date,title) => title ? date+'#'+title : date;
+// 같은 날에 행사 출첵이 따로 있을 때만 연습 쪽에 '· 연습'을 붙여 구분한다.
+const hasEvtOn = day => S.dates.some(k=>evtOf(k)&&dayOf(k)===day);
+
+function fmt(s){ const p=dayOf(s).split('-'),d=new Date(+p[0],+p[1]-1,+p[2]),n=['일','월','화','수','목','금','토']; return `${d.getMonth()+1}월 ${d.getDate()}일 (${n[d.getDay()]})`; }
+function fmtFull(k){
+  const base=fmt(k), ev=evtOf(k);
+  if(ev) return `${base} · ${ev}`;
+  const lbl=(S.labels&&S.labels[k])?S.labels[k]:'';
+  if(lbl) return `${base} · ${lbl}`;
+  return hasEvtOn(dayOf(k)) ? `${base} · 연습` : base;
+}
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
 
 function fetchWithTimeout(url, opts={}, ms=4000){
@@ -292,6 +307,7 @@ async function gasSet(key, value){
 function applyState(d){
   S.members=d.members||S.members; S.attendance=d.attendance||{}; S.events=d.events||[];
   S.dates=d.dates||[]; S.deleted=d.deleted||[]; S.labels=d.labels||{};
+  S.deletedMembers=d.deletedMembers||[];
 }
 
 // 서버 로드 실패 시 로컬 백업으로라도 화면은 보여주되, saveGuardOk=false로 두어 저장은 막는다.
@@ -359,7 +375,7 @@ document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState=
 
 async function sv(){
   if(!saveGuardOk){ toast('서버와 동기화 전이라 저장할 수 없어요 · 새로고침 해주세요'); throw new Error('save blocked: not synced'); }
-  await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted,labels:S.labels}));
+  await gasSet('kao-state', JSON.stringify({members:S.members,attendance:S.attendance,events:S.events,dates:S.dates,deleted:S.deleted,labels:S.labels,deletedMembers:S.deletedMembers||[]}));
   toast('저장됨');
 }
 
@@ -387,7 +403,8 @@ function rCal(){
   let h=dn.map(d=>`<div class="cal-dow">${d}</div>`).join('');
   const first=new Date(calY,calM,1),last=new Date(calY,calM+1,0),tod=toStr(new Date());
   const em={}; S.events.forEach((ev,i)=>{em[ev.date]={...ev,i};});
-  const prac=new Set(S.dates);
+  // 빨간 점은 '연습'이 있는 날만. 행사 출첵뿐인 날은 파란 행사 점으로만 표시된다.
+  const prac=new Set(S.dates.filter(k=>!evtOf(k)).map(dayOf));
   const cells=[];
   for(let i=0;i<first.getDay();i++){ const d=new Date(calY,calM,1-first.getDay()+i); cells.push({other:true,num:d.getDate()}); }
   for(let d=1;d<=last.getDate();d++){ cells.push({num:d,dt:new Date(calY,calM,d),s:toStr(new Date(calY,calM,d))}); }
@@ -438,7 +455,7 @@ function openModal(date,idx){
   $('m-title').value=idx!=null?S.events[idx].title:'';
   $('m-content').value=idx!=null?(S.events[idx].content||''):'';
   // 새 일정은 기본으로 출첵을 받는다. 이미 출첵 날짜가 있는 일정은 그 상태를 그대로 보여준다.
-  $('m-att').checked = date ? (idx!=null ? S.dates.includes(date) : true) : true;
+  $('m-att').checked = (idx!=null) ? S.dates.includes(keyOf(S.events[idx].date,S.events[idx].title)) : true;
   $('modal-wrap').style.display='flex';
 }
 $('m-cancel').onclick=()=>$('modal-wrap').style.display='none';
@@ -448,20 +465,45 @@ $('m-save').onclick=()=>{
   const date=$('m-date').value,title=$('m-title').value.trim(),content=$('m-content').value.trim();
   if(!date||!title)return;
   const idx=editIdx;
+  const prev = idx!=null ? {date:S.events[idx].date, title:S.events[idx].title} : null;
   const wantAtt=$('m-att').checked;
   $('modal-wrap').style.display='none';
   mutateAndSave(()=>{
     if(idx!=null){S.events[idx]={date,title,content};}else{S.events.push({date,title,content});}
-    // 출첵을 받기로 했으면 그 날짜를 목록에 만든다. 예전에 지웠던 날짜라면 휴지통에서도 꺼낸다.
-    if(wantAtt){
-      S.deleted=(S.deleted||[]).filter(x=>x!==date);
-      if(!S.dates.includes(date)){ S.dates.push(date); S.dates=[...new Set(S.dates)].sort(); }
-      if(!S.labels)S.labels={};
-      if(!S.labels[date])S.labels[date]=title;
+    const key=keyOf(date,title);
+    // 행사 이름이나 날짜를 바꿨으면 그 행사의 출첵표도 따라 옮긴다.
+    if(prev){
+      const oldKey=keyOf(prev.date,prev.title);
+      if(oldKey!==key) moveEntry(oldKey,key);
     }
+    // 행사 출첵은 연습과 별개의 열쇠를 쓰므로, 그날 연습 출첵은 그대로 남는다.
+    if(wantAtt) addEntry(key); else trashEntry(key);
     S.selCal=date;
   });
 };
+
+// 출첵표 한 칸을 목록에 넣는다. 예전에 지웠던 것이면 휴지통에서 꺼낸다.
+function addEntry(key){
+  S.deleted=(S.deleted||[]).filter(x=>x!==key);
+  if(!S.dates.includes(key)){ S.dates.push(key); S.dates=[...new Set(S.dates)].sort(); }
+}
+// 출첵을 끄면 지우지 않고 휴지통으로 보낸다 — 적어둔 O/X가 그대로 살아있게.
+function trashEntry(key){
+  if(!S.dates.includes(key))return;
+  S.dates=S.dates.filter(x=>x!==key);
+  if(!S.deleted)S.deleted=[];
+  if(!S.deleted.includes(key))S.deleted.push(key);
+  if(S.selDate===key)S.selDate=null;
+}
+function moveEntry(oldKey,newKey){
+  if(oldKey===newKey)return;
+  S.dates=S.dates.map(x=>x===oldKey?newKey:x);
+  S.deleted=(S.deleted||[]).map(x=>x===oldKey?newKey:x);
+  if(S.attendance[oldKey]){ S.attendance[newKey]=S.attendance[oldKey]; delete S.attendance[oldKey]; }
+  if(S.labels&&S.labels[oldKey]){ S.labels[newKey]=S.labels[oldKey]; delete S.labels[oldKey]; }
+  if(S.selDate===oldKey)S.selDate=newKey;
+  S.dates=[...new Set(S.dates)].sort();
+}
 
 function togglePast(){
   showPast=!showPast;
@@ -478,11 +520,11 @@ function rTiles(){
   const l=$('tile-list');
   if(showTrash){ rTrash(); return; }
   const tod=toStr(new Date());
-  const visible=showPast?S.dates:S.dates.filter(d=>d>=tod);
+  const visible=showPast?S.dates:S.dates.filter(d=>dayOf(d)>=tod);
   if(!visible.length){l.innerHTML=`<div class="empty">${S.dates.length?'지난 날짜만 있어요 · 위 버튼으로 보기':'날짜가 없습니다'}</div>`;return;}
   l.innerHTML=visible.map(d=>{
     const st=stats(d),sel=S.selDate===d?' sel':'';
-    return `<div class="date-tile${sel}" onclick="openAtt('${d}')"><div class="tile-top"><span class="tile-dt">${fmtFull(d)}</span></div><div class="tile-stats"><span class="so">참여 ${st.o}명</span><span class="sx">불참 ${st.x}명</span><span class="sq">미투표 ${st.q}명</span></div></div>`;
+    return `<div class="date-tile${sel}" onclick="openAtt('${argq(d)}')"><div class="tile-top"><span class="tile-dt">${fmtFull(d)}</span></div><div class="tile-stats"><span class="so">참여 ${st.o}명</span><span class="sx">불참 ${st.x}명</span><span class="sq">미투표 ${st.q}명</span></div></div>`;
   }).join('');
 }
 
@@ -491,33 +533,48 @@ function rTiles(){
 function rTrash(){
   const l=$('tile-list');
   const del=[...(S.deleted||[])].sort();
-  if(!del.length){l.innerHTML='<div class="empty">휴지통이 비어 있습니다</div>';return;}
-  l.innerHTML=del.map(d=>{
-    const st=stats(d);
-    return `<div class="date-tile" style="opacity:.65"><div class="tile-top"><span class="tile-dt">${fmtFull(d)}</span><button class="restore-btn" onclick="restoreDate('${d}')">복원</button></div><div class="tile-stats"><span class="so">참여 ${st.o}명</span><span class="sx">불참 ${st.x}명</span><span class="sq">미투표 ${st.q}명</span></div></div>`;
-  }).join('');
+  const dm=[...(S.deletedMembers||[])];
+  if(!del.length&&!dm.length){l.innerHTML='<div class="empty">휴지통이 비어 있습니다</div>';return;}
+  let h='';
+  if(del.length){
+    h+='<div class="mg-sec" style="margin-top:2px">지운 날짜</div>';
+    h+=del.map(d=>{
+      const st=stats(d);
+      return `<div class="date-tile" style="opacity:.65"><div class="tile-top"><span class="tile-dt">${fmtFull(d)}</span><button class="restore-btn" onclick="restoreDate('${argq(d)}')">복원</button></div><div class="tile-stats"><span class="so">참여 ${st.o}명</span><span class="sx">불참 ${st.x}명</span><span class="sq">미투표 ${st.q}명</span></div></div>`;
+    }).join('');
+  }
+  if(dm.length){
+    h+='<div class="mg-sec">지운 멤버</div>';
+    h+=dm.map(m=>`<div class="date-tile" style="opacity:.65"><div class="tile-top"><span class="tile-dt">${esc(m)}</span><button class="restore-btn" onclick="restoreMember('${argq(m)}')">복원</button></div></div>`).join('');
+  }
+  l.innerHTML=h;
 }
 
 function restoreDate(d){
+  mutateAndSave(()=>{ addEntry(d); });
+  toast(`${fmtFull(d)} 복원됨`);
+}
+// 멤버의 O/X 기록은 지워도 S.attendance에 남아 있어서, 되살리면 그대로 다시 보인다.
+function restoreMember(m){
   mutateAndSave(()=>{
-    S.deleted=(S.deleted||[]).filter(x=>x!==d);
-    if(!S.dates.includes(d)){ S.dates.push(d); S.dates=[...new Set(S.dates)].sort(); }
+    S.deletedMembers=(S.deletedMembers||[]).filter(x=>x!==m);
+    if(!S.members.includes(m))S.members.push(m);
   });
-  toast(`${fmt(d)} 복원됨`);
+  toast(`${m} 복원됨`);
 }
 
 function rDetail(){
   const w=$('detail-wrap');
   if(!S.selDate){w.style.display='none';return;}
   w.style.display='block';
-  $('att-title').textContent=fmt(S.selDate);
+  $('att-title').textContent=fmtFull(S.selDate);
   const st=stats(S.selDate);
   $('sp-o').textContent=`참여 ${st.o}명`; $('sp-x').textContent=`불참 ${st.x}명`; $('sp-q').textContent=`미투표 ${st.q}명`;
   const att=S.attendance[S.selDate]||{};
   if(!S.members.length){$('mgrid').innerHTML='<div class="empty">멤버가 없습니다 · 위 + 버튼으로 추가</div>';return;}
   $('mgrid').innerHTML=S.members.map(m=>{
     const v=att[m]||'';
-    return `<div class="mc"><span class="mn">${m}</span><div class="bg"><button class="ab${v==='o'?' ao':''}" onclick="setA('${m}','o')">O</button><button class="ab${v==='x'?' ax':''}" onclick="setA('${m}','x')">X</button></div></div>`;
+    return `<div class="mc"><span class="mn">${m}</span><div class="bg"><button class="ab${v==='o'?' ao':''}" onclick="setA('${argq(m)}','o')">O</button><button class="ab${v==='x'?' ax':''}" onclick="setA('${argq(m)}','x')">X</button></div></div>`;
   }).join('');
 }
 
@@ -534,15 +591,14 @@ function setA(m,v){
   });
 }
 // 확인 절차는 관리 창 안에서 끝나므로 여기서 다시 묻지 않는다.
-function delD(s){
+function delD(s){ mutateAndSave(()=>{ trashEntry(s); }); }
+function delM(m){
   mutateAndSave(()=>{
-    S.dates=S.dates.filter(d=>d!==s);
-    if(!S.deleted)S.deleted=[];
-    if(!S.deleted.includes(s))S.deleted.push(s);
-    if(S.selDate===s)S.selDate=null;
+    S.members=S.members.filter(x=>x!==m);
+    if(!S.deletedMembers)S.deletedMembers=[];
+    if(!S.deletedMembers.includes(m))S.deletedMembers.push(m);
   });
 }
-function delM(m){ mutateAndSave(()=>{ S.members=S.members.filter(x=>x!==m); }); }
 
 $('close-att').onclick=()=>{ S.selDate=null; render(); };
 $('prev-m').onclick=()=>{ calM--; if(calM<0){calM=11;calY--;} rCal(); };
@@ -563,6 +619,10 @@ $('trash-btn').onclick=toggleTrash;
 let mgMode='add';        // 'add' | 'manage'
 let mgConfirm=null;      // 삭제 확인이 펼쳐진 행의 키
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// onclick="fn('...')" 안에 값을 넣을 때 쓴다. 브라우저가 속성을 HTML 디코드한 뒤 JS로 읽으므로
+// JS 이스케이프를 먼저 하고 속성 이스케이프를 나중에 해야 행사 이름의 따옴표에 버튼이 죽지 않는다.
+const argq = s => String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function openMg(mode){
   mgMode=mode; mgConfirm=null;
@@ -595,7 +655,7 @@ function rMg(){
   const ds=[...S.dates].sort();
   b.innerHTML =
     `<div class="mg-sec">날짜 ${ds.length}개</div>` +
-    (ds.length?ds.map(d=>mgRow(fmtFull(d),'date',d,d<tod)).join(''):'<div class="empty" style="font-size:17px">날짜가 없습니다</div>') +
+    (ds.length?ds.map(d=>mgRow(fmtFull(d),'date',d,dayOf(d)<tod)).join(''):'<div class="empty" style="font-size:17px">날짜가 없습니다</div>') +
     `<div class="mg-sec">멤버 ${S.members.length}명</div>` +
     (S.members.length?S.members.map(m=>mgRow(m,'member',m,false)).join(''):'<div class="empty" style="font-size:17px">멤버가 없습니다</div>');
 }
@@ -603,18 +663,30 @@ function rMg(){
 function mgRow(label,kind,id,dim){
   const key=kind+':'+id;
   const open=mgConfirm===key;
-  const editBtn = kind==='date' ? `<button class="mg-edit" onclick="editDate('${esc(id)}')">수정</button>` : '';
+  // 행사 출첵표는 날짜·이름이 일정에 묶여 있으므로 일정 창에서 고치게 한다.
+  const editBtn = kind!=='date' ? ''
+    : (evtOf(id) ? `<button class="mg-edit" onclick="editEntryEvent('${argq(id)}')">수정</button>`
+                 : `<button class="mg-edit" onclick="editDate('${argq(id)}')">수정</button>`);
   const msg = kind==='date'
     ? '<div class="mg-cf-msg" style="color:#666">삭제해도 출석 기록은 휴지통에 보관됩니다.</div>'
-    : '<div class="mg-cf-msg" style="color:#A32D2D">이 사람의 출석 기록도 화면에서 함께 사라집니다.</div>';
+    : '<div class="mg-cf-msg" style="color:#A32D2D">지운 멤버는 휴지통에서 되살릴 수 있습니다.</div>';
   const cf = open ? `<div class="mg-cf">${msg}<div class="mg-cf-btns">
       <button style="background:none;border:0.5px solid #ddd;color:#666" onclick="mgCancel()">취소</button>
-      <button style="background:#E24B4A;border:none;color:#fff;font-weight:500" onclick="mgDelete('${kind}','${esc(id)}')">삭제</button>
+      <button style="background:#E24B4A;border:none;color:#fff;font-weight:500" onclick="mgDelete('${kind}','${argq(id)}')">삭제</button>
     </div></div>` : '';
   return `<div class="mg-row"${dim?' style="opacity:.6"':''}>
     <div class="mg-top"><span class="mg-name">${esc(label)}</span>
       <div style="display:flex;gap:5px;flex-shrink:0">${editBtn}<button class="mg-x" onclick="mgAsk('${key.replace(/'/g,"\\'")}')">✕</button></div>
     </div>${cf}</div>`;
+}
+
+// 행사 출첵표의 '수정'은 그 행사의 일정 창을 연다. 일정이 이미 지워졌다면 날짜만 고치게 한다.
+function editEntryEvent(key){
+  const day=dayOf(key), title=evtOf(key);
+  const idx=S.events.findIndex(e=>e.date===day&&e.title===title);
+  closeMg();
+  if(idx<0){ toast('이 행사의 일정이 없어 날짜만 고칩니다'); editDate(key); return; }
+  openModal(day,idx);
 }
 
 function mgAsk(key){ mgConfirm = (mgConfirm===key?null:key); rMg(); }
@@ -636,7 +708,7 @@ function addMember(){
 let editDateTarget=null;
 function editDate(old){
   editDateTarget=old;
-  $('ed-date').value=old;
+  $('ed-date').value=dayOf(old);
   $('ed-label').value=(S.labels&&S.labels[old])||'';
   $('edit-date-wrap').style.display='flex';
 }
@@ -644,18 +716,13 @@ $('ed-cancel').onclick=()=>{ $('edit-date-wrap').style.display='none'; };
 $('edit-date-wrap').onclick=e=>{ if(e.target===$('edit-date-wrap'))$('edit-date-wrap').style.display='none'; };
 $('ed-save').onclick=()=>{
   const old=editDateTarget;
-  const neu=$('ed-date').value;
+  const neu=keyOf($('ed-date').value, evtOf(old));   // 행사 꼬리표는 그대로 유지
   const lbl=$('ed-label').value.trim();
-  if(!neu)return;
+  if(!$('ed-date').value)return;
   if(neu!==old && S.dates.includes(neu)){alert('이미 있는 날짜입니다');return;}
   $('edit-date-wrap').style.display='none';
   mutateAndSave(()=>{
-    if(neu!==old){
-      S.dates=S.dates.map(d=>d===old?neu:d).sort();
-      if(S.attendance[old]){S.attendance[neu]=S.attendance[old];delete S.attendance[old];}
-      if(S.labels&&S.labels[old]){S.labels[neu]=S.labels[old];delete S.labels[old];}
-      if(S.selDate===old)S.selDate=neu;
-    }
+    moveEntry(old,neu);
     if(!S.labels)S.labels={};
     if(lbl) S.labels[neu]=lbl; else delete S.labels[neu];
   });
