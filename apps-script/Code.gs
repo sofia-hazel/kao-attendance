@@ -7,8 +7,7 @@
 
 const DATA_SHEET = 'data';      // A열 key, B열 value(JSON)
 const BACKUP_SHEET = 'backup';  // 저장할 때마다 한 줄씩: 시각, key, value
-const TABLE_SHEET = '오케';      // 사람이 읽는 표 (앱이 저장할 때마다 다시 그린다)
-const TABLE_MIN_COL = 10;        // 표는 최소 A~J열. 그 오른쪽은 사용자 메모 영역이라 절대 지우지 않는다.
+const TABLE_SHEET = '출석표';    // 사람이 읽는 표 (앱이 저장할 때마다 다시 그린다)
 const BACKUP_KEEP = 1000;       // 백업은 최근 1000줄만 남긴다
 const CACHE_SEC = 21600;        // 캐시 최대 6시간 (저장할 때마다 새 값으로 바뀐다)
 
@@ -85,12 +84,8 @@ function writeTable_(state) {
   const labels = state.labels || {};
   const keys = (state.dates || []).slice().sort();
 
+  sh.clear();
   const header = ['날짜', '구분'].concat(members);
-  // 탭 전체가 아니라 표가 쓰는 열만 지운다 — K열 이후에 적어둔 메모를 지키기 위해서다.
-  const width = Math.max(TABLE_MIN_COL, header.length);
-  const height = Math.max(sh.getMaxRows(), keys.length + 1);
-  sh.getRange(1, 1, height, width).clearContent().clearFormat();
-  sh.setRowHeight(1, 21);   // 예전 서버가 1행을 숨김용으로 3px로 줄여 둔 것을 되돌린다
   sh.getRange(1, 1, 1, header.length).setValues([header])
     .setFontWeight('bold').setBackground('#1D9E75').setFontColor('#ffffff');
   sh.setFrozenRows(1);
